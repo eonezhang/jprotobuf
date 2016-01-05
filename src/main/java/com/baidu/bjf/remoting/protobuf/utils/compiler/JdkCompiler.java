@@ -35,6 +35,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.tools.DiagnosticCollector;
 import javax.tools.FileObject;
@@ -58,10 +60,13 @@ import com.baidu.bjf.remoting.protobuf.utils.StringUtils;
  * @since 1.0.0
  */
 public class JdkCompiler extends AbstractCompiler {
+    
+    /**
+     * Logger for this class
+     */
+    private static final Logger LOGGER = Logger.getLogger(JdkCompiler.class.getName());
 
     private final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-
-    private final DiagnosticCollector<JavaFileObject> diagnosticCollector = new DiagnosticCollector<JavaFileObject>();
 
     private final ClassLoaderImpl classLoader;
 
@@ -75,7 +80,7 @@ public class JdkCompiler extends AbstractCompiler {
             throw new RuntimeException(
                     "compiler is null maybe you are on JRE enviroment please change to JDK enviroment.");
         }
-
+        DiagnosticCollector<JavaFileObject> diagnosticCollector = new DiagnosticCollector<JavaFileObject>();
         StandardJavaFileManager manager = compiler.getStandardFileManager(diagnosticCollector, null, null);
         if (loader instanceof URLClassLoader
                 && (!loader.getClass().getName().equals("sun.misc.Launcher$AppClassLoader"))) {
@@ -110,12 +115,19 @@ public class JdkCompiler extends AbstractCompiler {
 
     @Override
     public synchronized Class<?> doCompile(String name, String sourceCode, OutputStream os) throws Throwable {
+         
+    	if (LOGGER.isLoggable(Level.FINE)) {
+    		LOGGER.fine("Begin to compile source code: class is '" + name + "'");
+    	}
+        
         int i = name.lastIndexOf('.');
         String packageName = i < 0 ? "" : name.substring(0, i);
         String className = i < 0 ? name : name.substring(i + 1);
         JavaFileObjectImpl javaFileObject = new JavaFileObjectImpl(className, sourceCode);
         javaFileManager.putFileForInput(StandardLocation.SOURCE_PATH, packageName, className
                 + ClassUtils.JAVA_EXTENSION, javaFileObject);
+        
+        DiagnosticCollector<JavaFileObject> diagnosticCollector = new DiagnosticCollector<JavaFileObject>();
         Boolean result =
                 compiler.getTask(null, javaFileManager, diagnosticCollector, options, null,
                         Arrays.asList(new JavaFileObject[] { javaFileObject })).call();
@@ -123,14 +135,31 @@ public class JdkCompiler extends AbstractCompiler {
             throw new IllegalStateException("Compilation failed. class: " + name + ", diagnostics: "
                     + diagnosticCollector.getDiagnostics());
         }
+        
+        if (LOGGER.isLoggable(Level.FINE)) {
+        	LOGGER.fine("compile source code done: class is '" + name + "'");
+        	LOGGER.fine("loading class '" + name + "'");
+        }
+        
         Class<?> retClass = classLoader.loadClass(name);
+        if (LOGGER.isLoggable(Level.FINE)) {
+        	LOGGER.fine("loading class done  '" + name + "'");
+        }
 
-        byte[] bytes = classLoader.loadClassBytes(name);
-        if (os != null && bytes != null) {
-            os.write(bytes);
-            os.flush();
+        if (os != null) {
+            byte[] bytes = classLoader.loadClassBytes(name);
+            if (bytes != null) {
+                os.write(bytes);
+                os.flush();
+            }
         }
         return retClass;
+    }
+    
+    @Override
+    public byte[] loadBytes(String className) {
+        byte[] bytes = classLoader.loadClassBytes(className);
+        return bytes;
     }
 
     private final class ClassLoaderImpl extends ClassLoader {
@@ -327,5 +356,6 @@ public class JdkCompiler extends AbstractCompiler {
             return files;
         }
     }
+
 
 }

@@ -28,6 +28,7 @@ jprotobuf 主要性能消耗在 扫描类上注解，动态生成代码编译的
 #####Which version#####
 1. jprotobuf-1.x supports google protocol buffer v2.5.x<br>
 2. jprotobuf-2.x supports google protocol buffer v3.0.0-alpha-2. 实现对MAP结构的支持. [文档](https://github.com/jhunters/jprotobuf/tree/master/v3)<br>
+3. jprotobuf-android Android development supports
 
 #####关联项目：#####
 JProtobuf-rpc-socket 基于socket的高性能RPC实现<br>
@@ -42,7 +43,7 @@ jprotobuf-1.x  JDK 6 或以上版本
 <dependency>
   <groupId>com.baidu</groupId>
   <artifactId>jprotobuf</artifactId>
-  <version>1.8.2</version>
+  <version>1.8.7</version>
 </dependency>
 ```
 [下载发行包](http://repo1.maven.org/maven2/com/baidu/jprotobuf/)
@@ -57,6 +58,16 @@ jprotobuf-2.x  JDK 7 或以上版本
 </dependency>
 ```
 [下载发行包](https://oss.sonatype.org/content/repositories/snapshots/com/baidu/jprotobuf/2.0.1-SNAPSHOT/)
+
+jprotobuf-android  
+```xml
+<dependency>
+  <groupId>com.baidu</groupId>
+  <artifactId>jprotobuf-android</artifactId>
+  <version>1.1.1</version>
+</dependency>
+```
+[下载发行包](http://repo1.maven.org/maven2/com/baidu/jprotobuf-android/)
 
 #####quick start：#####
 Compiling .proto files
@@ -89,6 +100,7 @@ public class PersonJProtoBufProtoClass {
 	public Boolean boolF;
 }
 ```
+
 
 ## API使用说明 ##
 

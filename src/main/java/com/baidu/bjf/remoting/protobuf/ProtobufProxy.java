@@ -29,6 +29,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.baidu.bjf.remoting.protobuf.annotation.Protobuf;
+import com.baidu.bjf.remoting.protobuf.utils.ClassHelper;
 import com.baidu.bjf.remoting.protobuf.utils.CodePrinter;
 import com.baidu.bjf.remoting.protobuf.utils.FieldInfo;
 import com.baidu.bjf.remoting.protobuf.utils.FieldUtils;
@@ -44,12 +45,17 @@ import com.baidu.bjf.remoting.protobuf.utils.StringUtils;
  */
 public final class ProtobufProxy {
 
-    private static final Map<String, Codec> CACHED = new HashMap<String, Codec>();
-    
+    public static final ThreadLocal<Boolean> DEBUG_CONTROLLER = new ThreadLocal<Boolean>();
+
     /**
      * Logger for this class
      */
     private static final Logger LOGGER = Logger.getLogger(ProtobufProxy.class.getName());
+
+    /**
+     * cached {@link Codec} instance by class full name.
+     */
+    private static final Map<String, Codec> CACHED = new HashMap<String, Codec>();
 
     /**
      * To generate a protobuf proxy java source code for target class.
@@ -83,8 +89,8 @@ public final class ProtobufProxy {
             try {
                 cls.getConstructor(new Class<?>[0]);
             } catch (NoSuchMethodException e2) {
-                throw new IllegalArgumentException("Class '" + cls.getName()
-                        + "' must has default constructor method with no parameters.", e2);
+                throw new IllegalArgumentException(
+                        "Class '" + cls.getName() + "' must has default constructor method with no parameters.", e2);
             } catch (SecurityException e2) {
                 throw new IllegalArgumentException(e2.getMessage(), e2);
             }
@@ -110,7 +116,12 @@ public final class ProtobufProxy {
      * @return
      */
     public static <T> Codec<T> create(Class<T> cls) {
-        return create(cls, false, null);
+        Boolean debug = DEBUG_CONTROLLER.get();
+        if (debug == null) {
+            debug = false;
+        }
+
+        return create(cls, debug, null);
     }
 
     /**
@@ -140,6 +151,24 @@ public final class ProtobufProxy {
      * @return proxy instance object.
      */
     public static <T> Codec<T> create(Class<T> cls, boolean debug, File path) {
+        DEBUG_CONTROLLER.set(debug);
+        try {
+            return doCreate(cls, debug, path);
+        } finally {
+            DEBUG_CONTROLLER.remove();
+        }
+
+    }
+
+    /**
+     * To create a protobuf proxy class for target class.
+     * 
+     * @param <T> target object type to be proxied.
+     * @param cls target object class
+     * @param debug true will print generate java source code
+     * @return proxy instance object.
+     */
+    private static <T> Codec<T> doCreate(Class<T> cls, boolean debug, File path) {
         if (cls == null) {
             throw new NullPointerException("Parameter cls is null");
         }
@@ -148,6 +177,9 @@ public final class ProtobufProxy {
                 throw new RuntimeException("Param 'path' value should be a path directory.");
             }
         }
+
+        // get last modify time
+        long lastModify = ClassHelper.getLastModifyTime(cls);
 
         String uniClsName = cls.getName();
         Codec codec = CACHED.get(uniClsName);
@@ -205,7 +237,8 @@ public final class ProtobufProxy {
 
         }
 
-        Class<?> newClass = JDKCompilerHelper.COMPILER.compile(code, cls.getClassLoader(), fos);
+        Class<?> newClass =
+                JDKCompilerHelper.getJdkCompiler().compile(className, code, cls.getClassLoader(), fos, lastModify);
 
         if (fos != null) {
             try {
@@ -220,7 +253,7 @@ public final class ProtobufProxy {
             if (!CACHED.containsKey(uniClsName)) {
                 CACHED.put(uniClsName, newInstance);
             }
-            
+
             try {
                 // try to eagle load
                 Set<Class<?>> relativeProxyClasses = cg.getRelativeProxyClasses();
@@ -230,15 +263,13 @@ public final class ProtobufProxy {
             } catch (Exception e) {
                 LOGGER.log(Level.FINE, e.getMessage(), e.getCause());
             }
-            
+
             return newInstance;
         } catch (InstantiationException e) {
             throw new RuntimeException(e.getMessage(), e);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e.getMessage(), e);
         }
-        
-        
     }
 
     public static void clearCache() {
