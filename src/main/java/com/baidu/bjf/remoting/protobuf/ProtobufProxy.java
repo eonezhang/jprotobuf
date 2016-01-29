@@ -56,6 +56,8 @@ public final class ProtobufProxy {
      * cached {@link Codec} instance by class full name.
      */
     private static final Map<String, Codec> CACHED = new HashMap<String, Codec>();
+    
+    public static final ThreadLocal<File> OUTPUT_PATH = new ThreadLocal<File>();
 
     /**
      * To generate a protobuf proxy java source code for target class.
@@ -128,7 +130,7 @@ public final class ProtobufProxy {
      * @param cls target class to be compiled
      * @param outputPath compile byte files output stream
      */
-    public static void Compile(Class<?> cls, File outputPath) {
+    public static void compile(Class<?> cls, File outputPath) {
         if (outputPath == null) {
             throw new NullPointerException("Param 'outputPath' is null.");
         }
@@ -152,14 +154,25 @@ public final class ProtobufProxy {
      */
     public static <T> Codec<T> create(Class<T> cls, boolean debug, File path) {
         DEBUG_CONTROLLER.set(debug);
+        OUTPUT_PATH.set(path);
         try {
-            return doCreate(cls, debug, path);
+            return doCreate(cls, debug);
         } finally {
             DEBUG_CONTROLLER.remove();
+            OUTPUT_PATH.remove();
         }
 
     }
-
+    
+    private static ClassLoader getClassLoader() {
+    	ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+    	if (contextClassLoader != null) {
+    		return contextClassLoader;
+    	}
+    	
+    	return null;
+    }
+    
     /**
      * To create a protobuf proxy class for target class.
      * 
@@ -168,14 +181,9 @@ public final class ProtobufProxy {
      * @param debug true will print generate java source code
      * @return proxy instance object.
      */
-    private static <T> Codec<T> doCreate(Class<T> cls, boolean debug, File path) {
+    protected static <T> Codec<T> doCreate(Class<T> cls, boolean debug) {
         if (cls == null) {
             throw new NullPointerException("Parameter cls is null");
-        }
-        if (path != null) {
-            if (!path.isDirectory()) {
-                throw new RuntimeException("Param 'path' value should be a path directory.");
-            }
         }
 
         // get last modify time
@@ -189,13 +197,14 @@ public final class ProtobufProxy {
 
         CodeGenerator cg = getCodeGenerator(cls);
         cg.setDebug(debug);
+        File path = OUTPUT_PATH.get();
         cg.setOutputPath(path);
 
         // try to load first
         String className = cg.getFullClassName();
         Class<?> c = null;
         try {
-            c = Class.forName(className);
+            c = Class.forName(className, true, getClassLoader());
         } catch (ClassNotFoundException e1) {
             // if class not found so should generate a new java source class.
             c = null;
@@ -218,7 +227,7 @@ public final class ProtobufProxy {
         }
 
         FileOutputStream fos = null;
-        if (path != null) {
+        if (path != null && path.isDirectory()) {
             String pkg = "";
             if (className.indexOf('.') != -1) {
                 pkg = StringUtils.substringBeforeLast(className, ".");

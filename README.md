@@ -43,7 +43,7 @@ jprotobuf-1.x  JDK 6 或以上版本
 <dependency>
   <groupId>com.baidu</groupId>
   <artifactId>jprotobuf</artifactId>
-  <version>1.8.7</version>
+  <version>1.9.4</version>
 </dependency>
 ```
 [下载发行包](http://repo1.maven.org/maven2/com/baidu/jprotobuf/)
@@ -65,6 +65,16 @@ jprotobuf-android
   <groupId>com.baidu</groupId>
   <artifactId>jprotobuf-android</artifactId>
   <version>1.1.1</version>
+</dependency>
+```
+[下载发行包](http://repo1.maven.org/maven2/com/baidu/jprotobuf-android/)
+
+jprotobuf-precompile-plugin 支持maven编译时同时进行jprotobuf对象的预编译操作. 注：plugin版本建议使用>=1.2.0， jprotobuf 支持版本>=1.9.4  
+```xml
+<dependency>
+  <groupId>com.baidu</groupId>
+  <artifactId>jprotobuf-precompile-plugin</artifactId>
+  <version>1.2.1</version>
 </dependency>
 ```
 [下载发行包](http://repo1.maven.org/maven2/com/baidu/jprotobuf-android/)
@@ -101,6 +111,33 @@ public class PersonJProtoBufProtoClass {
 }
 ```
 
+Maven插件支持预编译功能配置，使用该功能后，所有的Jprotobuf注解标识的对象都会进行预编译操作，并生成相应的class文件到目标jar或war中， 使用示例如下：
+```xml
+	<plugin>
+		<groupId>com.baidu</groupId>
+		<artifactId>jprotobuf-precompile-plugin</artifactId>
+		<version>1.2.1</version>
+		<configuration>
+			<skipErrorNoDescriptorsFound>true</skipErrorNoDescriptorsFound>
+			<filterClassPackage>com.baidu</filterClassPackage>
+		</configuration>
+		<executions>
+			<execution>
+				<phase>compile</phase>
+				<goals>
+					<goal>precompile</goal>
+				</goals>
+			</execution>
+		</executions>
+	</plugin>
+```
+filterClassPackage 用来指定进行预编译时需要扫描的package,目前只支持配置一个package名称<br>
+maven执行命令如下:<br>
+```property
+mvn jprotobuf:precompile
+or
+mvn package 
+```
 
 ## API使用说明 ##
 
@@ -379,7 +416,7 @@ public enum EnumAttrPOJO implements EnumReadable {
 
 ```
 
-###   ProtobufProxy增加生成中间编译java子节码文件功能 ###
+###   ProtobufProxy增加生成中间编译java字节码文件功能 ###
 
 使用示例：
 
@@ -391,10 +428,9 @@ ProtobufIDLProxy.create(string, false， new File("D:/"));
 ```
 上面的示例，则会直接把生成的中间子节码文件生成到D盘根目录下。
 
-
 注：目前ProtobufIDLProxy已经能完全支持含有内部类或内部枚举类型的message的动态解析。
 
-更多使用示例请参见testcase代码。
+
 
 
 ###   ProtobufIDLProxy增加从proto文件到jprotobuf POJO源代码生成功能 ###
@@ -405,10 +441,10 @@ InputStream fis = EnumIDLGeneratorTest.class.getResourceAsStream("si_product_biz
 ProtobufIDLProxy.generateSource(fis, new File("D:\\test"));
 
 ```
-上面的示例，则会直接把生成的中间子节码文件生成到D盘test目录下。
+上面的示例，则会直接把生成的源码文件生成到D盘test目录下。
 
-## 联系我们 ##
+更多使用示例请参见testcase代码。
 
-email: [rigel-opensource@baidu.com](mailto://rigel-opensource@baidu.com "发邮件给jprotobuf开发组")
+
 
 
