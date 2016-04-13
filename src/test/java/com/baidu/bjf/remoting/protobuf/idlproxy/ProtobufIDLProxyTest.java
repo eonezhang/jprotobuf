@@ -129,6 +129,7 @@ public class ProtobufIDLProxyTest {
 	@Test
 	public void testInnerIncludingServiceIDLGenerateSource() {
 		StringBuilder idl = new StringBuilder();
+		idl.append("package mypkg;\n");
 		idl.append("message DataInfo {\n");
 		idl.append("   enum DataVisibility {\n");
 		
@@ -168,6 +169,20 @@ public class ProtobufIDLProxyTest {
 			
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+	}
+	
+	@Test
+	public void testFileImportWithDiffPackageIDLGenerateSource() {
+		
+		File file = new File("D:/qq/Pk2.proto");
+		if (!file.exists()) {
+			return;
+		}
+		try {
+			Map<String, IDLProxyObject> idlProxyObjects = ProtobufIDLProxy.create(file);
+		} catch (IOException e) {
+		    e.printStackTrace();
 		}
 	}
 

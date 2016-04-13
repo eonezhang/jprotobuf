@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -50,7 +51,11 @@ import com.squareup.protoparser.Type;
  */
 public class ProtobufIDLProxy {
 
-    /**
+    
+    private static final char PACKAGE_SPLIT_CHAR = '.';
+
+    private static final String PACKAGE_SPLIT = PACKAGE_SPLIT_CHAR + "";
+	/**
      * 
      */
     private static final String UTF_8 = "utf-8";
@@ -325,6 +330,18 @@ public class ProtobufIDLProxy {
 
         return ret;
     }
+    
+    private static Set<String> getPackages(List<CodeDependent> cds) {
+    	Set<String> ret = new HashSet<String>();
+    	if (cds == null) {
+    		return ret;
+    	}
+    	for (CodeDependent cd : cds) {
+			ret.add(cd.pkg);
+		}
+    	
+    	return ret;
+    }
 
     /**
      * @param protoFile
@@ -364,6 +381,17 @@ public class ProtobufIDLProxy {
         if (!multi && count != 1) {
             throw new RuntimeException("Only one message defined allowed in '.proto' IDL");
         }
+        
+        String packageName = protoFile.getPackageName();
+        // to check if has "java_package" option and "java_outer_classname"
+        List<Option> options = protoFile.getOptions();
+        if (options != null) {
+            for (Option option : options) {
+                if (option.getName().equals(JAVA_PACKAGE_OPTION)) {
+                    packageName = option.getValue().toString();
+                }
+            }
+        }
 
         List<Class> ret = new ArrayList<Class>(types.size());
 
@@ -382,9 +410,12 @@ public class ProtobufIDLProxy {
                 messageTypes.add((MessageType) type);
                 continue;
             } else {
-                cd = createCodeByType(protoFile, (EnumType) type, true);
+                cd = createCodeByType(protoFile, (EnumType) type, true, packageName);
                 enumNames.add(type.getName());
                 enumNames.add(type.getFullyQualifiedName());
+                if (!StringUtils.isEmpty(packageName)) {
+                	enumNames.add(StringUtils.removeStart(type.getFullyQualifiedName(), packageName + PACKAGE_SPLIT_CHAR));
+                }
             }
 
             if (debug) {
@@ -404,7 +435,7 @@ public class ProtobufIDLProxy {
 
         for (MessageType mt : messageTypes) {
             CodeDependent cd;
-            cd = createCodeByType(protoFile, (MessageType) mt, enumNames, true, new ArrayList<Type>());
+            cd = createCodeByType(protoFile, (MessageType) mt, enumNames, true, new ArrayList<Type>(), cds);
 
             if (cd.isDepndency()) {
                 cds.add(cd);
@@ -477,12 +508,14 @@ public class ProtobufIDLProxy {
             compiledClass.addAll(next.subClasses);
             if (!next.isDepndency()) {
                 compiledClass.add(next.name);
+                compiledClass.add(next.pkg + PACKAGE_SPLIT_CHAR + next.name);
                 iterator.remove();
                 return next;
             } else {
                 Set<String> dependencies = next.dependencies;
                 if (compiledClass.containsAll(dependencies)) {
                     compiledClass.add(next.name);
+                    compiledClass.add(next.pkg + PACKAGE_SPLIT_CHAR + next.name);
                     iterator.remove();
                     return next;
                 }
@@ -524,22 +557,12 @@ public class ProtobufIDLProxy {
         return null;
     }
 
-    private static CodeDependent createCodeByType(ProtoFile protoFile, EnumType type, boolean topLevelClass) {
+    private static CodeDependent createCodeByType(ProtoFile protoFile, EnumType type, 
+    		boolean topLevelClass, String packageName) {
 
         CodeDependent cd = new CodeDependent();
 
-        String packageName = protoFile.getPackageName();
         String defaultClsName = type.getName();
-        // to check if has "java_package" option and "java_outer_classname"
-        List<Option> options = protoFile.getOptions();
-        if (options != null) {
-            for (Option option : options) {
-                if (option.getName().equals(JAVA_PACKAGE_OPTION)) {
-                    packageName = option.getValue().toString();
-                }
-            }
-        }
-
         String simpleName = getProxyClassName(defaultClsName);
 
         // To generate class
@@ -589,7 +612,7 @@ public class ProtobufIDLProxy {
     }
 
     private static CodeDependent createCodeByType(ProtoFile protoFile, MessageType type, Set<String> enumNames,
-            boolean topLevelClass, List<Type> parentNestedTypes) {
+            boolean topLevelClass, List<Type> parentNestedTypes, List<CodeDependent> cds) {
 
         CodeDependent cd = new CodeDependent();
 
@@ -641,6 +664,9 @@ public class ProtobufIDLProxy {
             if (t instanceof EnumType) {
                 enumNames.add(t.getName());
                 enumNames.add(t.getFullyQualifiedName());
+                if (!StringUtils.isEmpty(packageName)) {
+                	enumNames.add(StringUtils.removeStart(t.getFullyQualifiedName(), packageName + PACKAGE_SPLIT));
+                }
             }
         }
 
@@ -654,7 +680,7 @@ public class ProtobufIDLProxy {
             String javaType = "";
             if (fType == null) {
             	String jType = field.getType();
-            	javaType = getProxyClassName(jType);
+            	javaType = getProxyClassName(jType, getPackages(cds));
             	
                 if (!isNestedTypeDependency(field.getType(), checkNestedTypes)) {
                     cd.addDependency(javaType);
@@ -680,7 +706,7 @@ public class ProtobufIDLProxy {
                 // if is enum type
                 if (defaultValue instanceof EnumType.Value) {
                     EnumType.Value enumValue = (EnumType.Value) defaultValue;
-                    code.append(javaType).append(".").append(enumValue.getName());
+                    code.append(javaType).append(PACKAGE_SPLIT_CHAR).append(enumValue.getName());
                 } else if (defaultValue instanceof String) {
                     code.append("\"").append(defaultValue).append("\"");
                 } else {
@@ -696,15 +722,19 @@ public class ProtobufIDLProxy {
             for (Type t : nestedTypes) {
                 CodeDependent nestedCd;
                 String fqname = t.getFullyQualifiedName();
+                if (!StringUtils.isEmpty(packageName)) {
+                	fqname = StringUtils.removeStart(t.getFullyQualifiedName(), packageName + PACKAGE_SPLIT_CHAR);
+                }
                 String subClsName = getProxyClassName(fqname);
                 
                 if (t instanceof EnumType) {
-                    nestedCd = createCodeByType(protoFile, (EnumType) t, false);
+                    nestedCd = createCodeByType(protoFile, (EnumType) t, false, packageName);
                     enumNames.add(t.getName());
                 } else {
-                    nestedCd = createCodeByType(protoFile, (MessageType) t, enumNames, false, checkNestedTypes);
+                    nestedCd = createCodeByType(protoFile, (MessageType) t, enumNames, false, checkNestedTypes, cds);
                 }
                 nestedCd.addSubClass(subClsName);
+                nestedCd.addSubClass(packageName + PACKAGE_SPLIT_CHAR + subClsName);
                 
                 code.append(nestedCd.code);
                 // merge dependency
@@ -812,7 +842,7 @@ public class ProtobufIDLProxy {
         }
 
         String simpleName = getProxyClassName(defaultClsName);
-        String className = packageName + "." + simpleName;
+        String className = packageName + PACKAGE_SPLIT_CHAR + simpleName;
 
         Class<?> c = null;
         try {
@@ -826,14 +856,25 @@ public class ProtobufIDLProxy {
     }
     
     private static String getProxyClassName(String name) {
+    	Set<String> emptyPkgs = Collections.emptySet();
+    	return getProxyClassName(name, emptyPkgs);
+    }
+    
+    private static String getProxyClassName(String name, Set<String> pkgs) {
     	
     	String ret = "";
-    	if (name.indexOf('.') != -1) {
+    	if (name.indexOf(PACKAGE_SPLIT_CHAR) != -1) {
     		String[] split = name.split("\\.");
+    		boolean classFound = false;
     		for (String string : split) {
-    			ret +=  getProxyClassName(string) + ".";
+    			if (pkgs.contains(string) && !classFound) {
+    				ret +=  string + PACKAGE_SPLIT_CHAR;
+    			} else {
+    				classFound = true;
+    				ret +=  getProxyClassName(string) + PACKAGE_SPLIT_CHAR;
+    			}
 			}
-    		ret = StringUtils.removeEnd(ret, ".");
+    		ret = StringUtils.removeEnd(ret, PACKAGE_SPLIT);
     	} else {
     		ret = name + DEFAULT_SUFFIX_CLASSNAME;
     	}
@@ -871,7 +912,7 @@ public class ProtobufIDLProxy {
             if (StringUtils.isEmpty(pkg)) {
                 return name;
             }
-            return pkg + "." + name;
+            return pkg + PACKAGE_SPLIT_CHAR + name;
         }
     }
 }
