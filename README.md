@@ -1,11 +1,17 @@
 jprotobuf
 =========
 
+## Build status
+
+[![Build Status](https://travis-ci.org/jhunters/jprotobuf.svg?branch=master)](https://travis-ci.org/jhunters/jprotobuf)
+[![Coverage Status](https://coveralls.io/repos/github/jhunters/jprotobuf/badge.svg?branch=master)](https://coveralls.io/github/jhunters/jprotobuf?branch=master)
+
 #####What is jprotobuf#####
 
 A very useful utility library for java programmer using google protobuf<br>
 jprotobuf是针对Java程序开发一套简易类库，目的是简化java语言对protobuf类库的使用<br>
 使用jprotobuf可以无需再去了解proto文件操作与语法，直接使用java注解定义字段类型即可。
+
 
 #####How it works#####
 jprotobuf工作原理如下：<br>
@@ -43,7 +49,7 @@ jprotobuf-1.x  JDK 6 或以上版本
 <dependency>
   <groupId>com.baidu</groupId>
   <artifactId>jprotobuf</artifactId>
-  <version>1.9.6</version>
+  <version>1.9.8</version>
 </dependency>
 ```
 [下载发行包](http://repo1.maven.org/maven2/com/baidu/jprotobuf/)
